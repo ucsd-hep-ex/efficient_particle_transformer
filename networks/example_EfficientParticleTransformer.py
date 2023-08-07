@@ -8,10 +8,10 @@ https://github.com/hqucms/weaver-core/blob/main/weaver/nn/model/ParticleTransfor
 '''
 
 
-class ParticleTransformerWrapper(torch.nn.Module):
+class EfficientParticleTransformerWrapper(torch.nn.Module):
     def __init__(self, **kwargs) -> None:
         super().__init__()
-        self.mod = ParticleTransformer(**kwargs)
+        self.mod = EfficientParticleTransformer(**kwargs)
 
     @torch.jit.ignore
     def no_weight_decay(self):
@@ -45,7 +45,7 @@ def get_model(data_config, **kwargs):
     cfg.update(**kwargs)
     _logger.info('Model config: %s' % str(cfg))
 
-    model = ParticleTransformerWrapper(**cfg)
+    model = EfficientParticleTransformerWrapper(**cfg)
 
     model_info = {
         'input_names': list(data_config.input_names),
