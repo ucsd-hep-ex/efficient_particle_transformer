@@ -12,7 +12,7 @@ from functools import partial
 from particle_transformer.networks.multihead_linear_attention import MultiheadLinearAttention
 
 from weaver.utils.logger import _logger
-from weaver.nn.models.ParticleTransformer import build_sparse_tensor, trunc_normal_, SequenceTrimmer, Embed, PairEmbed
+from weaver.nn.model.ParticleTransformer import build_sparse_tensor, trunc_normal_, SequenceTrimmer, Embed, PairEmbed
 
 
 class LinBlock(nn.Module):
