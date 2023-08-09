@@ -29,7 +29,10 @@ dataopts="--num-workers 2 --fetch-step 0.01"
 
 # PN, PFN, PCNN, ParT
 model=$1
-if [[ "$model" == "ParT" ]]; then
+if [[ "$model" == "EffParT" ]]; then
+    modelopts="networks/example_EfficientParticleTransformer.py --use-amp"
+    batchopts="--batch-size 512 --start-lr 1e-3"
+elif [[ "$model" == "ParT" ]]; then
     modelopts="networks/example_ParticleTransformer.py --use-amp"
     batchopts="--batch-size 512 --start-lr 1e-3"
 elif [[ "$model" == "PN" ]]; then

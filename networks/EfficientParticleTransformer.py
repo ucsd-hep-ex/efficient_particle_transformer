@@ -9,13 +9,13 @@ import copy
 import torch
 import torch.nn as nn
 from functools import partial
-from multihead_linear_attention import MultiheadLinearAttention
+from particle_transformer.networks.multihead_linear_attention import MultiheadLinearAttention
 
 from weaver.utils.logger import _logger
 from weaver.nn.models.ParticleTransformer import build_sparse_tensor, trunc_normal_, SequenceTrimmer, Embed, PairEmbed
 
 
-class Block(nn.Module):
+class LinBlock(nn.Module):
     def __init__(
         self,
         embed_dim=128,
@@ -38,6 +38,7 @@ class Block(nn.Module):
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.max_seq_len = max_seq_len
+        self.compressed = compressed
         self.head_dim = embed_dim // num_heads
         self.ffn_dim = embed_dim * ffn_ratio
 
@@ -164,6 +165,7 @@ class EfficientParticleTransformer(nn.Module):
         default_cfg = dict(
             embed_dim=embed_dim,
             num_heads=num_heads,
+            compressed=4,
             ffn_ratio=4,
             dropout=0.1,
             attn_dropout=0.1,
@@ -204,9 +206,9 @@ class EfficientParticleTransformer(nn.Module):
             if pair_embed_dims is not None and pair_input_dim + pair_extra_dim > 0
             else None
         )
-        self.blocks = nn.ModuleList([Block(**cfg_block) for _ in range(num_layers)])
+        self.blocks = nn.ModuleList([LinBlock(**cfg_block) for _ in range(num_layers)])
         self.cls_blocks = nn.ModuleList(
-            [Block(**cfg_cls_block) for _ in range(num_cls_layers)]
+            [LinBlock(**cfg_cls_block) for _ in range(num_cls_layers)]
         )
         self.norm = nn.LayerNorm(embed_dim)
 
