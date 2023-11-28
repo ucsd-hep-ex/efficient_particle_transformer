@@ -35,6 +35,9 @@ if [[ "$model" == "EffParT" ]]; then
 elif [[ "$model" == "ParT" ]]; then
     modelopts="networks/example_ParticleTransformer.py --use-amp"
     batchopts="--batch-size 512 --start-lr 1e-3"
+elif [[ "$model" == "ParTNoPairs" ]]; then
+    modelopts="networks/example_ParticleTransformerNoPairs.py --use-amp"
+    batchopts="--batch-size 512 --start-lr 1e-3"
 elif [[ "$model" == "PN" ]]; then
     modelopts="networks/example_ParticleNet.py"
     batchopts="--batch-size 512 --start-lr 1e-2"
@@ -63,16 +66,16 @@ SAMPLE_TYPE=Pythia
 
 $CMD \
     --data-train \
-    "HToBB:${DATADIR}/${SAMPLE_TYPE}/train_100M/HToBB_*.root" \
-    "HToCC:${DATADIR}/${SAMPLE_TYPE}/train_100M/HToCC_*.root" \
-    "HToGG:${DATADIR}/${SAMPLE_TYPE}/train_100M/HToGG_*.root" \
-    "HToWW2Q1L:${DATADIR}/${SAMPLE_TYPE}/train_100M/HToWW2Q1L_*.root" \
-    "HToWW4Q:${DATADIR}/${SAMPLE_TYPE}/train_100M/HToWW4Q_*.root" \
-    "TTBar:${DATADIR}/${SAMPLE_TYPE}/train_100M/TTBar_*.root" \
-    "TTBarLep:${DATADIR}/${SAMPLE_TYPE}/train_100M/TTBarLep_*.root" \
-    "WToQQ:${DATADIR}/${SAMPLE_TYPE}/train_100M/WToQQ_*.root" \
-    "ZToQQ:${DATADIR}/${SAMPLE_TYPE}/train_100M/ZToQQ_*.root" \
-    "ZJetsToNuNu:${DATADIR}/${SAMPLE_TYPE}/train_100M/ZJetsToNuNu_*.root" \
+    "HToBB:${DATADIR}/${SAMPLE_TYPE}/train_100M/HToBB_00*.root" \
+    "HToCC:${DATADIR}/${SAMPLE_TYPE}/train_100M/HToCC_00*.root" \
+    "HToGG:${DATADIR}/${SAMPLE_TYPE}/train_100M/HToGG_00*.root" \
+    "HToWW2Q1L:${DATADIR}/${SAMPLE_TYPE}/train_100M/HToWW2Q1L_00*.root" \
+    "HToWW4Q:${DATADIR}/${SAMPLE_TYPE}/train_100M/HToWW4Q_00*.root" \
+    "TTBar:${DATADIR}/${SAMPLE_TYPE}/train_100M/TTBar_00*.root" \
+    "TTBarLep:${DATADIR}/${SAMPLE_TYPE}/train_100M/TTBarLep_00*.root" \
+    "WToQQ:${DATADIR}/${SAMPLE_TYPE}/train_100M/WToQQ_00*.root" \
+    "ZToQQ:${DATADIR}/${SAMPLE_TYPE}/train_100M/ZToQQ_00*.root" \
+    "ZJetsToNuNu:${DATADIR}/${SAMPLE_TYPE}/train_100M/ZJetsToNuNu_00*.root" \
     --data-val "${DATADIR}/${SAMPLE_TYPE}/val_5M/*.root" \
     --data-test \
     "HToBB:${DATADIR}/${SAMPLE_TYPE}/test_20M/HToBB_*.root" \
