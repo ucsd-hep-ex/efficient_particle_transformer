@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: effpart-job
+  labels:
+    jobgroup: part-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: training
+        image: gitlab-registry.nrp-nautilus.io/jmduarte/weaver:latest
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - >-
+            cd /part-vol/weaver-core &&
+            pip install -e . &&
+            cd /part-vol/weaver-core/particle_transformer &&
+            DDP_NGPUS=2 ./train_JetClass.sh EffParT full --batch-size 512
+        volumeMounts:
+        - mountPath: /part-vol
+          name: part-vol
+        resources:
+          limits:
+            memory: 64Gi
+            cpu: "32"
+            nvidia.com/gpu: "2"
+          requests:
+            memory: 64Gi
+            cpu: "32"
+            nvidia.com/gpu: "2"
+      volumes:
+      - name: part-vol
+        persistentVolumeClaim:
+          claimName: part-vol
+      restartPolicy: Never
+  backoffLimit: 1
