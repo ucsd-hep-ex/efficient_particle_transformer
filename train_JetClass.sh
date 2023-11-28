@@ -23,7 +23,7 @@ else
 fi
 
 epochs=50
-samples_per_epoch=$((10000 * 1024 / $NGPUS))
+samples_per_epoch=$((1000 * 1024 / $NGPUS))
 samples_per_epoch_val=$((10000 * 128))
 dataopts="--num-workers 2 --fetch-step 0.01"
 

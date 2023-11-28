@@ -136,12 +136,7 @@ class EfficientParticleTransformer(nn.Module):
         input_dim,
         num_classes=None,
         # network configurations
-        pair_input_dim=4,
-        pair_extra_dim=0,
-        remove_self_pair=False,
-        use_pre_activation_pair=True,
         embed_dims=[128, 512, 128],
-        pair_embed_dims=[64, 64, 64],
         num_heads=8,
         num_layers=8,
         num_cls_layers=2,
@@ -188,23 +183,10 @@ class EfficientParticleTransformer(nn.Module):
             cfg_cls_block.update(cls_block_params)
         _logger.info("cfg_cls_block: %s" % str(cfg_cls_block))
 
-        self.pair_extra_dim = pair_extra_dim
         self.embed = (
             Embed(input_dim, embed_dims, activation=activation)
             if len(embed_dims) > 0
             else nn.Identity()
-        )
-        self.pair_embed = (
-            PairEmbed(
-                pair_input_dim,
-                pair_extra_dim,
-                pair_embed_dims + [cfg_block["num_heads"]],
-                remove_self_pair=remove_self_pair,
-                use_pre_activation_pair=use_pre_activation_pair,
-                for_onnx=for_inference,
-            )
-            if pair_embed_dims is not None and pair_input_dim + pair_extra_dim > 0
-            else None
         )
         self.blocks = nn.ModuleList([LinBlock(**cfg_block) for _ in range(num_layers)])
         self.cls_blocks = nn.ModuleList(
@@ -254,15 +236,10 @@ class EfficientParticleTransformer(nn.Module):
         with torch.cuda.amp.autocast(enabled=self.use_amp):
             # input embedding
             x = self.embed(x).masked_fill(~mask.permute(2, 0, 1), 0)  # (P, N, C)
-            attn_mask = None
-            if (v is not None or uu is not None) and self.pair_embed is not None:
-                attn_mask = self.pair_embed(v, uu).view(
-                    -1, v.size(-1), v.size(-1)
-                )  # (N*num_heads, P, P)
 
             # transform
             for block in self.blocks:
-                x = block(x, x_cls=None, padding_mask=padding_mask, attn_mask=attn_mask)
+                x = block(x, x_cls=None, padding_mask=padding_mask)
 
             # extract class token
             cls_tokens = self.cls_token.expand(1, x.size(1), -1)  # (1, N, C)
@@ -288,12 +265,7 @@ class EfficientParticleTransformerTagger(nn.Module):
         sv_input_dim,
         num_classes=None,
         # network configurations
-        pair_input_dim=4,
-        pair_extra_dim=0,
-        remove_self_pair=False,
-        use_pre_activation_pair=True,
         embed_dims=[128, 512, 128],
-        pair_embed_dims=[64, 64, 64],
         num_heads=8,
         num_layers=8,
         num_cls_layers=2,
@@ -321,12 +293,7 @@ class EfficientParticleTransformerTagger(nn.Module):
             input_dim=embed_dims[-1],
             num_classes=num_classes,
             # network configurations
-            pair_input_dim=pair_input_dim,
-            pair_extra_dim=pair_extra_dim,
-            remove_self_pair=remove_self_pair,
-            use_pre_activation_pair=use_pre_activation_pair,
             embed_dims=[],
-            pair_embed_dims=pair_embed_dims,
             num_heads=num_heads,
             num_layers=num_layers,
             num_cls_layers=num_cls_layers,
@@ -365,111 +332,3 @@ class EfficientParticleTransformerTagger(nn.Module):
             x = torch.cat([pf_x, sv_x], dim=0)
 
             return self.part(x, v, mask)
-
-
-class EfficientParticleTransformerTaggerWithExtraPairFeatures(nn.Module):
-    def __init__(
-        self,
-        pf_input_dim,
-        sv_input_dim,
-        num_classes=None,
-        # network configurations
-        pair_input_dim=4,
-        pair_extra_dim=0,
-        remove_self_pair=False,
-        use_pre_activation_pair=True,
-        embed_dims=[128, 512, 128],
-        pair_embed_dims=[64, 64, 64],
-        num_heads=8,
-        num_layers=8,
-        num_cls_layers=2,
-        block_params=None,
-        cls_block_params={"dropout": 0, "attn_dropout": 0, "activation_dropout": 0},
-        fc_params=[],
-        activation="gelu",
-        # misc
-        trim=True,
-        for_inference=False,
-        use_amp=False,
-        **kwargs
-    ) -> None:
-        super().__init__(**kwargs)
-
-        self.use_amp = use_amp
-        self.for_inference = for_inference
-
-        self.pf_trimmer = SequenceTrimmer(enabled=trim and not for_inference)
-        self.sv_trimmer = SequenceTrimmer(enabled=trim and not for_inference)
-
-        self.pf_embed = Embed(pf_input_dim, embed_dims, activation=activation)
-        self.sv_embed = Embed(sv_input_dim, embed_dims, activation=activation)
-
-        self.part = EfficientParticleTransformer(
-            input_dim=embed_dims[-1],
-            num_classes=num_classes,
-            # network configurations
-            pair_input_dim=pair_input_dim,
-            pair_extra_dim=pair_extra_dim,
-            remove_self_pair=remove_self_pair,
-            use_pre_activation_pair=use_pre_activation_pair,
-            embed_dims=[],
-            pair_embed_dims=pair_embed_dims,
-            num_heads=num_heads,
-            num_layers=num_layers,
-            num_cls_layers=num_cls_layers,
-            block_params=block_params,
-            cls_block_params=cls_block_params,
-            fc_params=fc_params,
-            activation=activation,
-            # misc
-            trim=False,
-            for_inference=for_inference,
-            use_amp=use_amp,
-        )
-
-    @torch.jit.ignore
-    def no_weight_decay(self):
-        return {
-            "part.cls_token",
-        }
-
-    def forward(
-        self,
-        pf_x,
-        pf_v=None,
-        pf_mask=None,
-        sv_x=None,
-        sv_v=None,
-        sv_mask=None,
-        pf_uu=None,
-        pf_uu_idx=None,
-    ):
-        # x: (N, C, P)
-        # v: (N, 4, P) [px,py,pz,energy]
-        # mask: (N, 1, P) -- real particle = 1, padded = 0
-
-        with torch.no_grad():
-            if not self.for_inference:
-                if pf_uu_idx is not None:
-                    pf_uu = build_sparse_tensor(pf_uu, pf_uu_idx, pf_x.size(-1))
-
-            pf_x, pf_v, pf_mask, pf_uu = self.pf_trimmer(pf_x, pf_v, pf_mask, pf_uu)
-            sv_x, sv_v, sv_mask, _ = self.sv_trimmer(sv_x, sv_v, sv_mask)
-            v = torch.cat([pf_v, sv_v], dim=2)
-            mask = torch.cat([pf_mask, sv_mask], dim=2)
-            uu = torch.zeros(
-                v.size(0),
-                pf_uu.size(1),
-                v.size(2),
-                v.size(2),
-                dtype=v.dtype,
-                device=v.device,
-            )
-            uu[:, :, : pf_x.size(2), : pf_x.size(2)] = pf_uu
-
-        with torch.cuda.amp.autocast(enabled=self.use_amp):
-            pf_x = self.pf_embed(pf_x)  # after embed: (seq_len, batch, embed_dim)
-            sv_x = self.sv_embed(sv_x)
-            x = torch.cat([pf_x, sv_x], dim=0)
-
-            return self.part(x, v, mask, uu)
