@@ -14,13 +14,13 @@ spec:
         args:
         - -c
         - >-
-            cd /part-vol/weaver-core &&
+            cd /part-vol-2/weaver-core &&
             pip install -e . &&
-            cd /part-vol/weaver-core/particle_transformer &&
+            cd /part-vol-2/weaver-core/particle_transformer &&
             DDP_NGPUS=2 ./train_JetClass.sh EffParT full --batch-size 512
         volumeMounts:
-        - mountPath: /part-vol
-          name: part-vol
+        - mountPath: /part-vol-2
+          name: part-vol-2
         resources:
           limits:
             memory: 64Gi
@@ -31,8 +31,8 @@ spec:
             cpu: "32"
             nvidia.com/gpu: "2"
       volumes:
-      - name: part-vol
+      - name: part-vol-2
         persistentVolumeClaim:
-          claimName: part-vol
+          claimName: part-vol-2
       restartPolicy: Never
   backoffLimit: 1

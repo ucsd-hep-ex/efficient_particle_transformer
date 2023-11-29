@@ -15,9 +15,9 @@ spec:
         cpu: "16"
         memory: "32Gi"
     volumeMounts:
-    - mountPath: /part-vol
-      name: part-vol
+    - mountPath: /part-vol-2
+      name: part-vol-2
   volumes:
-    - name: part-vol
+    - name: part-vol-2
       persistentVolumeClaim:
-        claimName: part-vol
+        claimName: part-vol-2
