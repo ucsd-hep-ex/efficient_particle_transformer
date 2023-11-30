@@ -186,7 +186,6 @@ class EfficientParticleTransformer(nn.Module):
         default_cfg = dict(
             embed_dim=embed_dim,
             num_heads=num_heads,
-            compressed=4,
             ffn_ratio=4,
             dropout=0.1,
             attn_dropout=0.1,
