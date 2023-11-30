@@ -16,6 +16,7 @@ spec:
         - >-
             cd /part-vol-2/weaver-core &&
             pip install -e . &&
+            pip install reformer_pytorch &&
             cd /part-vol-2/weaver-core/particle_transformer &&
             DDP_NGPUS=2 ./train_JetClass.sh LinformerParT full --batch-size 512
         volumeMounts:
