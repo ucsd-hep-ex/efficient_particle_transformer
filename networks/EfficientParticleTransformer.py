@@ -24,6 +24,8 @@ class LinBlock(nn.Module):
         max_seq_len=128,
         attn_type="linformer",
         compressed=4,
+        bucket_size=32,
+        n_hashes=4,
         ffn_ratio=4,
         dropout=0.1,
         attn_dropout=0.1,
@@ -59,8 +61,8 @@ class LinBlock(nn.Module):
             self.attn = LSHAttention(
                 embed_dim,
                 num_heads,
-                bucket_size=max_seq_len // compressed,
-                n_hashes=4,
+                bucket_size=bucket_size,
+                n_hashes=n_hashes,
                 causal=False,
                 dropout=attn_dropout,
             )
