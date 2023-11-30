@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: reformerpart-job
+  labels:
+    jobgroup: part-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: training
+        image: gitlab-registry.nrp-nautilus.io/jmduarte/weaver:latest
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - >-
+            cd /part-vol-2/weaver-core &&
+            pip install -e . &&
+            pip install reformer_pytorch &&
+            cd /part-vol-2/weaver-core/particle_transformer &&
+            DDP_NGPUS=2 ./train_JetClass.sh ReformerParT full --batch-size 512
+        volumeMounts:
+        - mountPath: /part-vol-2
+          name: part-vol-2
+        resources:
+          limits:
+            memory: 64Gi
+            cpu: "32"
+            nvidia.com/gpu: "2"
+          requests:
+            memory: 64Gi
+            cpu: "32"
+            nvidia.com/gpu: "2"
+      volumes:
+      - name: part-vol-2
+        persistentVolumeClaim:
+          claimName: part-vol-2
+      restartPolicy: Never
+  backoffLimit: 1
