@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 from functools import partial
 from particle_transformer.networks.multihead_linear_attention import MultiheadLinearAttention
-from reformer_pytorch import LSHAttention
+from reformer_pytorch import LSHSelfAttention
 
 from weaver.utils.logger import _logger
 from weaver.nn.model.ParticleTransformer import build_sparse_tensor, trunc_normal_, SequenceTrimmer, Embed, Block
@@ -58,9 +58,9 @@ class LinBlock(nn.Module):
                 compressed=compressed,
             )
         elif self.attn_type == "reformer":
-            self.attn = LSHAttention(
+            self.attn = LSHSelfAttention(
                 embed_dim,
-                num_heads,
+                heads=num_heads,
                 bucket_size=bucket_size,
                 n_hashes=n_hashes,
                 causal=False,
