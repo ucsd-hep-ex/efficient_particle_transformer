@@ -9,8 +9,6 @@ import copy
 import torch
 import torch.nn as nn
 from functools import partial
-from particle_transformer.networks.multihead_linear_attention import MultiheadLinearAttention
-from reformer_pytorch import LSHSelfAttention
 
 from weaver.utils.logger import _logger
 from weaver.nn.model.ParticleTransformer import build_sparse_tensor, trunc_normal_, SequenceTrimmer, Embed, Block
@@ -26,6 +24,9 @@ class LinBlock(nn.Module):
         compressed=4,
         bucket_size=32,
         n_hashes=4,
+        d_state=16,
+        d_conv=4,
+        expand=2,
         ffn_ratio=4,
         dropout=0.1,
         attn_dropout=0.1,
@@ -49,6 +50,7 @@ class LinBlock(nn.Module):
 
         self.pre_attn_norm = nn.LayerNorm(embed_dim)
         if self.attn_type == "linformer":
+            from particle_transformer.networks.multihead_linear_attention import MultiheadLinearAttention
             self.attn = MultiheadLinearAttention(
                 embed_dim,
                 num_heads,
@@ -58,6 +60,7 @@ class LinBlock(nn.Module):
                 compressed=compressed,
             )
         elif self.attn_type == "reformer":
+            from reformer_pytorch import LSHSelfAttention
             self.attn = LSHSelfAttention(
                 embed_dim,
                 heads=num_heads,
@@ -65,6 +68,14 @@ class LinBlock(nn.Module):
                 n_hashes=n_hashes,
                 causal=False,
                 dropout=attn_dropout,
+            )
+        elif self.attn_type == "mamba":
+            from mamba_ssm import Mamba
+            self.attn = Mamba(
+                d_model=embed_dim,
+                d_state=d_state,
+                d_conv=d_conv,
+                expand=expand,
             )
         self.full_attn = nn.MultiheadAttention(
             embed_dim,
