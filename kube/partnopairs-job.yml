@@ -35,4 +35,4 @@ spec:
         persistentVolumeClaim:
           claimName: part-vol-2
       restartPolicy: Never
-  backoffLimit: 1
+  backoffLimit: 0

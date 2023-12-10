@@ -18,7 +18,7 @@ spec:
             pip install -e . &&
             pip install reformer_pytorch &&
             cd /part-vol-2/weaver-core/particle_transformer &&
-            ./train_JetClass.sh ReformerParT full --batch-size 1024 --gpus 0,1
+            ./train_JetClass.sh ReformerParT full --batch-size 1024 --gpus 0,1 --num-workers 1
         volumeMounts:
         - mountPath: /part-vol-2
           name: part-vol-2
@@ -36,4 +36,4 @@ spec:
         persistentVolumeClaim:
           claimName: part-vol-2
       restartPolicy: Never
-  backoffLimit: 1
+  backoffLimit: 0
