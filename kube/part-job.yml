@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: effpart-job
+  name: part-job
   labels:
     jobgroup: part-job
 spec:
@@ -17,7 +17,7 @@ spec:
             cd /part-vol-2/weaver-core &&
             pip install -e . &&
             cd /part-vol-2/weaver-core/particle_transformer &&
-            DDP_NGPUS=2 ./train_JetClass.sh EffParT full --batch-size 512
+            DDP_NGPUS=2 ./train_JetClass.sh ParT full --batch-size 512
         volumeMounts:
         - mountPath: /part-vol-2
           name: part-vol-2

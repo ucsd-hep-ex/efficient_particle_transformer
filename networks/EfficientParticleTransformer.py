@@ -10,9 +10,10 @@ import torch
 import torch.nn as nn
 from functools import partial
 from particle_transformer.networks.multihead_linear_attention import MultiheadLinearAttention
+from reformer_pytorch import LSHSelfAttention
 
 from weaver.utils.logger import _logger
-from weaver.nn.model.ParticleTransformer import build_sparse_tensor, trunc_normal_, SequenceTrimmer, Embed, PairEmbed
+from weaver.nn.model.ParticleTransformer import build_sparse_tensor, trunc_normal_, SequenceTrimmer, Embed, Block
 
 
 class LinBlock(nn.Module):
@@ -21,7 +22,10 @@ class LinBlock(nn.Module):
         embed_dim=128,
         num_heads=8,
         max_seq_len=128,
+        attn_type="linformer",
         compressed=4,
+        bucket_size=32,
+        n_hashes=4,
         ffn_ratio=4,
         dropout=0.1,
         attn_dropout=0.1,
@@ -41,15 +45,32 @@ class LinBlock(nn.Module):
         self.compressed = compressed
         self.head_dim = embed_dim // num_heads
         self.ffn_dim = embed_dim * ffn_ratio
+        self.attn_type = attn_type
 
         self.pre_attn_norm = nn.LayerNorm(embed_dim)
-        self.attn = MultiheadLinearAttention(
+        if self.attn_type == "linformer":
+            self.attn = MultiheadLinearAttention(
+                embed_dim,
+                num_heads,
+                dropout=attn_dropout,
+                add_bias_kv=add_bias_kv,
+                max_seq_len=max_seq_len,
+                compressed=compressed,
+            )
+        elif self.attn_type == "reformer":
+            self.attn = LSHSelfAttention(
+                embed_dim,
+                heads=num_heads,
+                bucket_size=bucket_size,
+                n_hashes=n_hashes,
+                causal=False,
+                dropout=attn_dropout,
+            )
+        self.full_attn = nn.MultiheadAttention(
             embed_dim,
             num_heads,
             dropout=attn_dropout,
             add_bias_kv=add_bias_kv,
-            max_seq_len=max_seq_len,
-            compressed=compressed,
         )
         self.post_attn_norm = nn.LayerNorm(embed_dim) if scale_attn else None
         self.dropout = nn.Dropout(dropout)
@@ -95,15 +116,20 @@ class LinBlock(nn.Module):
             residual = x_cls
             u = torch.cat((x_cls, x), dim=0)  # (seq_len+1, batch, embed_dim)
             u = self.pre_attn_norm(u)
-            x = self.attn(x_cls, u, u, key_padding_mask=padding_mask)[
+            x = self.full_attn(x_cls, u, u, key_padding_mask=padding_mask)[
                 0
             ]  # (1, batch, embed_dim)
         else:
             residual = x
             x = self.pre_attn_norm(x)
-            x = self.attn(x, x, x, key_padding_mask=padding_mask, attn_mask=attn_mask)[
-                0
-            ]  # (seq_len, batch, embed_dim)
+            if self.attn_type == "linformer":
+                x = self.attn(x, x, x, key_padding_mask=padding_mask, attn_mask=attn_mask)[
+                    0
+                ]  # (seq_len, batch, embed_dim)
+            elif self.attn_type == "performer":
+                x = self.attn(x, x, input_mask=padding_mask, attn_mask=attn_mask)[
+                    0
+                ]  # (seq_len, batch, embed_dim)
 
         if self.c_attn is not None:
             tgt_len = x.size(0)
@@ -160,7 +186,6 @@ class EfficientParticleTransformer(nn.Module):
         default_cfg = dict(
             embed_dim=embed_dim,
             num_heads=num_heads,
-            compressed=4,
             ffn_ratio=4,
             dropout=0.1,
             attn_dropout=0.1,
@@ -190,7 +215,7 @@ class EfficientParticleTransformer(nn.Module):
         )
         self.blocks = nn.ModuleList([LinBlock(**cfg_block) for _ in range(num_layers)])
         self.cls_blocks = nn.ModuleList(
-            [LinBlock(**cfg_cls_block) for _ in range(num_cls_layers)]
+            [Block(**cfg_cls_block) for _ in range(num_cls_layers)]
         )
         self.norm = nn.LayerNorm(embed_dim)
 
