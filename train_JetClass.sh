@@ -35,6 +35,9 @@ if [[ "$model" == "LinformerParT" ]]; then
 elif [[ "$model" == "ReformerParT" ]]; then
     modelopts="networks/example_ReformerParticleTransformer.py --use-amp"
     batchopts="--batch-size 512 --start-lr 1e-3"
+elif [[ "$model" == "MambaParT" ]]; then
+    modelopts="networks/example_MambaParticleTransformer.py --use-amp"
+    batchopts="--batch-size 512 --start-lr 1e-3"
 elif [[ "$model" == "ParT" ]]; then
     modelopts="networks/example_ParticleTransformer.py --use-amp"
     batchopts="--batch-size 512 --start-lr 1e-3"
