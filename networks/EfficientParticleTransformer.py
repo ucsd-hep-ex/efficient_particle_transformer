@@ -201,7 +201,12 @@ class EfficientParticleTransformer(nn.Module):
         input_dim,
         num_classes=None,
         # network configurations
+        pair_input_dim=4,
+        pair_extra_dim=0,
+        remove_self_pair=False,
+        use_pre_activation_pair=True,
         embed_dims=[128, 512, 128],
+        pair_embed_dims=None,  # [64, 64, 64],
         num_heads=8,
         num_layers=8,
         num_cls_layers=2,
@@ -247,16 +252,16 @@ class EfficientParticleTransformer(nn.Module):
             cfg_cls_block.update(cls_block_params)
         _logger.info("cfg_cls_block: %s" % str(cfg_cls_block))
 
+        self.pair_extra_dim = pair_extra_dim
         self.embed = (
             Embed(input_dim, embed_dims, activation=activation)
             if len(embed_dims) > 0
             else nn.Identity()
         )
-        if attn_type == "pairs":
-            self.pair_embed = PairEmbed(
-                pair_input_dim, pair_extra_dim, pair_embed_dims + [cfg_block['num_heads']],
-                remove_self_pair=remove_self_pair, use_pre_activation_pair=use_pre_activation_pair,
-                for_onnx=for_inference) if pair_embed_dims is not None and pair_input_dim + pair_extra_dim > 0 else None
+        self.pair_embed = PairEmbed(
+            pair_input_dim, pair_extra_dim, pair_embed_dims + [cfg_block['num_heads']],
+            remove_self_pair=remove_self_pair, use_pre_activation_pair=use_pre_activation_pair,
+            for_onnx=for_inference) if pair_embed_dims is not None and pair_input_dim + pair_extra_dim > 0 else None
         self.blocks = nn.ModuleList([LinBlock(**cfg_block) for _ in range(num_layers)])
         self.cls_blocks = nn.ModuleList(
             [Block(**cfg_cls_block) for _ in range(num_cls_layers)]
