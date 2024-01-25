@@ -38,6 +38,9 @@ elif [[ "$model" == "ReformerParT" ]]; then
 elif [[ "$model" == "MambaParT" ]]; then
     modelopts="networks/example_MambaParticleTransformer.py --use-amp"
     batchopts="--batch-size 512 --start-lr 1e-3"
+elif [[ "$model" == "PairAttnParT" ]]; then
+    modelopts="networks/example_PairAttnParticleTransformer.py --use-amp"
+    batchopts="--batch-size 512 --start-lr 1e-3"
 elif [[ "$model" == "ParT" ]]; then
     modelopts="networks/example_ParticleTransformer.py --use-amp"
     batchopts="--batch-size 512 --start-lr 1e-3"

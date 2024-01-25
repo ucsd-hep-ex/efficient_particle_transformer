@@ -11,8 +11,28 @@ import torch.nn as nn
 from functools import partial
 
 from weaver.utils.logger import _logger
-from weaver.nn.model.ParticleTransformer import build_sparse_tensor, trunc_normal_, SequenceTrimmer, Embed, Block
+from weaver.nn.model.ParticleTransformer import build_sparse_tensor, trunc_normal_, SequenceTrimmer, Embed, Block, PairEmbed
 
+class PairAttention(nn.Module):
+    def __init__(self, embed_dim, num_heads, dropout=0.1):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.head_dim = embed_dim // num_heads
+
+        self.v_proj = nn.Linear(embed_dim, embed_dim)
+
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x, attn_mask):
+        # x: (P, N, C)
+        # attn_mask: (N*num_heads, P, P)
+        # output: (P, N, C)
+        seq_len = x.size(0)
+        v = self.v_proj(x).view(-1, seq_len, self.num_heads, self.head_dim).permute(0, 2, 1, 3)  # (N, num_heads, P, head_dim)
+        attn = self.dropout(torch.softmax(attn_mask, dim=-1).view(-1, self.num_heads, seq_len, seq_len))  # (N, num_heads, P, P)
+        output = torch.matmul(attn, v).permute(2, 0, 1, 3).contiguous().view(seq_len, -1, self.embed_dim)  # (P, N, C)
+        return output, attn
 
 class LinBlock(nn.Module):
     def __init__(
@@ -77,6 +97,8 @@ class LinBlock(nn.Module):
                 d_conv=d_conv,
                 expand=expand,
             )
+        elif self.attn_type == "pairs":
+            self.attn = PairAttention(embed_dim, num_heads, dropout=attn_dropout)
         self.full_attn = nn.MultiheadAttention(
             embed_dim,
             num_heads,
@@ -141,6 +163,12 @@ class LinBlock(nn.Module):
                 x = self.attn(x, x, input_mask=padding_mask, attn_mask=attn_mask)[
                     0
                 ]  # (seq_len, batch, embed_dim)
+            elif self.attn_type == "reformer":
+                x = self.attn(x)
+            elif self.attn_type == "mamba":
+                x = self.attn(x)
+            elif self.attn_type == "pairs":
+                x = self.attn(x, attn_mask)[0]
 
         if self.c_attn is not None:
             tgt_len = x.size(0)
@@ -173,7 +201,12 @@ class EfficientParticleTransformer(nn.Module):
         input_dim,
         num_classes=None,
         # network configurations
+        pair_input_dim=4,
+        pair_extra_dim=0,
+        remove_self_pair=False,
+        use_pre_activation_pair=True,
         embed_dims=[128, 512, 128],
+        pair_embed_dims=None,  # [64, 64, 64],
         num_heads=8,
         num_layers=8,
         num_cls_layers=2,
@@ -219,11 +252,16 @@ class EfficientParticleTransformer(nn.Module):
             cfg_cls_block.update(cls_block_params)
         _logger.info("cfg_cls_block: %s" % str(cfg_cls_block))
 
+        self.pair_extra_dim = pair_extra_dim
         self.embed = (
             Embed(input_dim, embed_dims, activation=activation)
             if len(embed_dims) > 0
             else nn.Identity()
         )
+        self.pair_embed = PairEmbed(
+            pair_input_dim, pair_extra_dim, pair_embed_dims + [cfg_block['num_heads']],
+            remove_self_pair=remove_self_pair, use_pre_activation_pair=use_pre_activation_pair,
+            for_onnx=for_inference) if pair_embed_dims is not None and pair_input_dim + pair_extra_dim > 0 else None
         self.blocks = nn.ModuleList([LinBlock(**cfg_block) for _ in range(num_layers)])
         self.cls_blocks = nn.ModuleList(
             [Block(**cfg_cls_block) for _ in range(num_cls_layers)]
@@ -272,10 +310,13 @@ class EfficientParticleTransformer(nn.Module):
         with torch.cuda.amp.autocast(enabled=self.use_amp):
             # input embedding
             x = self.embed(x).masked_fill(~mask.permute(2, 0, 1), 0)  # (P, N, C)
+            attn_mask = None
+            if (v is not None or uu is not None) and self.pair_embed is not None:
+                attn_mask = self.pair_embed(v, uu).view(-1, v.size(-1), v.size(-1))  # (N*num_heads, P, P)
 
             # transform
             for block in self.blocks:
-                x = block(x, x_cls=None, padding_mask=padding_mask)
+                x = block(x, x_cls=None, padding_mask=padding_mask, attn_mask=attn_mask)
 
             # extract class token
             cls_tokens = self.cls_token.expand(1, x.size(1), -1)  # (1, N, C)
