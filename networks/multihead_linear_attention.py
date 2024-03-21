@@ -91,6 +91,8 @@ class MultiheadLinearAttention(nn.Module):
             self.layerwise_sharing = True
         self.shared_kv_compressed = shared_kv_compressed
 
+        self.pair_subsequence = nn.Linear(max_seq_len, self.compress_seq_len, bias=bias) #projecting attn mask to same dimensions as attn (QK)
+
         self.out_proj = quant_noise(
             nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
         )
@@ -326,17 +328,24 @@ class MultiheadLinearAttention(nn.Module):
                 )
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
+        # Adding Attention Mask
+        if self.self_attention:
+            attn_mask = F.linear(attn_mask, self.pair_subsequence.weight[:, 0:tgt_len])
+
+        if attn_weights is not None:
+            attn_weights += attn_mask
+
         attn_weights = MultiheadLinearAttention.apply_sparse_mask(
             attn_weights, tgt_len, src_len, bsz
         )
 
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
-        if attn_mask is not None:
-            attn_mask = attn_mask.unsqueeze(0)
-            if self.onnx_trace:
-                attn_mask = attn_mask.repeat(attn_weights.size(0), 1, 1)
-            attn_weights += attn_mask
+        # if attn_mask is not None:
+        #     attn_mask = attn_mask.unsqueeze(0)
+        #     if self.onnx_trace:
+        #         attn_mask = attn_mask.repeat(attn_weights.size(0), 1, 1)
+        #     attn_weights += attn_mask
 
         if before_softmax:
             return attn_weights, v
