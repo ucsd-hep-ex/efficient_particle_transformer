@@ -16,9 +16,8 @@ spec:
         - >-
             cd /part-vol-2/weaver-core &&
             pip install -e . &&
-            pip install reformer_pytorch causal-conv1d mamba-ssm &&
             cd /part-vol-2/weaver-core/particle_transformer &&
-            ./train_JetClass.sh PairAttnParT full --batch-size 512 --gpus 0,1 --num-workers 1
+            ./train_JetClass.sh PairAttnParT full --batch-size 128 --gpus 0,1 --num-workers 1
         volumeMounts:
         - mountPath: /part-vol-2
           name: part-vol-2
