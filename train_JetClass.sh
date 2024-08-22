@@ -43,7 +43,7 @@ elif [[ "$model" == "MambaParT" ]]; then
     batchopts="--batch-size 512 --start-lr 1e-3"
 elif [[ "$model" == "PairAttnParT" ]]; then
     modelopts="networks/example_PairAttnParticleTransformer.py --use-amp"
-    batchopts="--batch-size 512 --start-lr 1e-3"
+    batchopts="--batch-size 256 --start-lr 1e-3"
 elif [[ "$model" == "ParT" ]]; then
     modelopts="networks/example_ParticleTransformer.py --use-amp"
     batchopts="--batch-size 512 --start-lr 1e-3"
