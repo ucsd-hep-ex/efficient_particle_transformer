@@ -22,20 +22,21 @@ def to_qtypedderr(x):
     kin, qtype, d0, d0err, dz, dzerr, detaphi = x.split((5, 6, 1, 1, 1, 1, 2), dim=1)
     return qtype, torch.cat((d0, dz), dim=1), torch.cat((d0err, dzerr), dim=1)
 
-def pairwise_x_fts(xi, xj):
+def pairwise_x_fts(xi, xj, num_outputs=10):
     qtypei, di, derri = to_qtypedderr(xi)
     qtypej, dj, derrj = to_qtypedderr(xj)
     qtype = qtypei + qtypej
     d = (di + dj) / (1 + di*dj)
     derr = torch.sqrt(derri ** 2 + derrj ** 2)
-    outputs = [qtype, d, derr]
+    outputs = torch.cat([qtype, d, derr], dim=1)
 
-    return torch.cat(outputs, dim=1)
+    assert num_outputs == outputs.size(1)
+    return outputs
 
 class PairEmbedFull(nn.Module):
     def __init__(
             self, pairwise_lv_dim, pairwise_x_dim, pairwise_input_dim, dims,
-            remove_self_pair=False, use_pre_activation_pair=True, mode='sum',
+            remove_self_pair=False, use_pre_activation_pair=True, mode='concat',
             normalize_input=True, activation='gelu', eps=1e-8,
             for_onnx=False):
         super().__init__()
@@ -364,7 +365,7 @@ class EfficientParticleTransformer(nn.Module):
         num_classes=None,
         # network configurations
         pair_input_dim=4,
-        pair_more_input_dim=10,
+        pair_more_input_dim=0,
         pair_extra_dim=0,
         remove_self_pair=False,
         use_pre_activation_pair=True,
