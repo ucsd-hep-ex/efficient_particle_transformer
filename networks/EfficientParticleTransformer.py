@@ -22,14 +22,13 @@ def to_qtypedderr(x):
     kin, qtype, d0, d0err, dz, dzerr, detaphi = x.split((5, 6, 1, 1, 1, 1, 2), dim=1)
     return qtype, torch.cat((d0, dz), dim=1), torch.cat((d0err, dzerr), dim=1)
 
-def pairwise_x_fts(xi, xj, num_outputs=10):
+def pairwise_x_fts(xi, xj, num_outputs=10, eps=1e-8):
     qtypei, di, derri = to_qtypedderr(xi)
     qtypej, dj, derrj = to_qtypedderr(xj)
     qtype = qtypei + qtypej
-    d = (di + dj) / (1 + di*dj)
-    derr = torch.sqrt(derri ** 2 + derrj ** 2)
+    d = (di + dj) / (1 + di*dj + eps)
+    derr = torch.sqrt(derri**2 + derrj**2)
     outputs = torch.cat([qtype, d, derr], dim=1)
-
     assert num_outputs == outputs.size(1)
     return outputs
 
@@ -422,6 +421,7 @@ class EfficientParticleTransformer(nn.Module):
             if len(embed_dims) > 0
             else nn.Identity()
         )
+        self.pair_more_input_dim = pair_more_input_dim
         self.pair_embed = PairEmbedFull(
             pair_input_dim, pair_more_input_dim, pair_extra_dim, pair_embed_dims + [cfg_block['num_heads']],
             remove_self_pair=remove_self_pair, use_pre_activation_pair=use_pre_activation_pair,
@@ -472,11 +472,12 @@ class EfficientParticleTransformer(nn.Module):
             padding_mask = ~mask.squeeze(1)  # (N, P)
 
         with torch.cuda.amp.autocast(enabled=self.use_amp):
+            x_in = x if self.pair_more_input_dim > 0 else None
             # input embedding
             x = self.embed(x).masked_fill(~mask.permute(2, 0, 1), 0)  # (P, N, C)
             attn_mask = None
-            if (v is not None or uu is not None) and self.pair_embed is not None:
-                attn_mask = self.pair_embed(v, uu).view(-1, v.size(-1), v.size(-1))  # (N*num_heads, P, P)
+            if (v is not None or x_in is not None or uu is not None) and self.pair_embed is not None:
+                attn_mask = self.pair_embed(v, x_in, uu).view(-1, v.size(-1), v.size(-1))  # (N*num_heads, P, P)
 
             # transform
             for block in self.blocks:
