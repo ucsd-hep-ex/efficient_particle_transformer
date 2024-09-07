@@ -261,12 +261,6 @@ class LinBlock(nn.Module):
             )
         elif self.attn_type == "pairs":
             self.attn = PairAttention(embed_dim, num_heads, dropout=attn_dropout)
-        self.full_attn = nn.MultiheadAttention(
-            embed_dim,
-            num_heads,
-            dropout=attn_dropout,
-            add_bias_kv=add_bias_kv,
-        )
         self.post_attn_norm = nn.LayerNorm(embed_dim) if scale_attn else None
         self.dropout = nn.Dropout(dropout)
 
@@ -288,11 +282,10 @@ class LinBlock(nn.Module):
             else None
         )
 
-    def forward(self, x, x_cls=None, padding_mask=None, attn_mask=None):
+    def forward(self, x, padding_mask=None, attn_mask=None):
         """
         Args:
             x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
-            x_cls (Tensor, optional): class token input to the layer of shape `(1, batch, embed_dim)`
             padding_mask (ByteTensor, optional): binary
                 ByteTensor of shape `(batch, seq_len)` where padding
                 elements are indicated by ``1``.
@@ -301,36 +294,22 @@ class LinBlock(nn.Module):
             encoded output of shape `(seq_len, batch, embed_dim)`
         """
 
-        if x_cls is not None:
-            with torch.no_grad():
-                # prepend one element for x_cls: -> (batch, 1+seq_len)
-                padding_mask = torch.cat(
-                    (torch.zeros_like(padding_mask[:, :1]), padding_mask), dim=1
-                )
-            # class attention: https://arxiv.org/pdf/2103.17239.pdf
-            residual = x_cls
-            u = torch.cat((x_cls, x), dim=0)  # (seq_len+1, batch, embed_dim)
-            u = self.pre_attn_norm(u)
-            x = self.full_attn(x_cls, u, u, key_padding_mask=padding_mask)[
+        residual = x
+        x = self.pre_attn_norm(x)
+        if self.attn_type == "linformer":
+            x = self.attn(x, x, x, key_padding_mask=padding_mask, attn_mask=attn_mask)[
                 0
-            ]  # (1, batch, embed_dim)
-        else:
-            residual = x
-            x = self.pre_attn_norm(x)
-            if self.attn_type == "linformer":
-                x = self.attn(x, x, x, key_padding_mask=padding_mask, attn_mask=attn_mask)[
-                    0
-                ]  # (seq_len, batch, embed_dim)
-            elif self.attn_type == "performer":
-                x = self.attn(x, x, input_mask=padding_mask, attn_mask=attn_mask)[
-                    0
-                ]  # (seq_len, batch, embed_dim)
-            elif self.attn_type == "reformer":
-                x = self.attn(x)
-            elif self.attn_type == "mamba":
-                x = self.attn(x)
-            elif self.attn_type == "pairs":
-                x = self.attn(x, attn_mask)[0]
+            ]  # (seq_len, batch, embed_dim)
+        elif self.attn_type == "performer":
+            x = self.attn(x, x, input_mask=padding_mask, attn_mask=attn_mask)[
+                0
+            ]  # (seq_len, batch, embed_dim)
+        elif self.attn_type == "reformer":
+            x = self.attn(x)
+        elif self.attn_type == "mamba":
+            x = self.attn(x)
+        elif self.attn_type == "pairs":
+            x = self.attn(x, attn_mask)[0]
 
         if self.c_attn is not None:
             tgt_len = x.size(0)
@@ -481,7 +460,7 @@ class EfficientParticleTransformer(nn.Module):
 
             # transform
             for block in self.blocks:
-                x = block(x, x_cls=None, padding_mask=padding_mask, attn_mask=attn_mask)
+                x = block(x, padding_mask=padding_mask, attn_mask=attn_mask)
 
             # extract class token
             cls_tokens = self.cls_token.expand(1, x.size(1), -1)  # (1, N, C)
