@@ -44,6 +44,12 @@ elif [[ "$model" == "PCNN" ]]; then
 elif [[ "$model" == "SinglePairs" ]]; then
     modelopts="networks/example_SinglePairs.py --use-amp"
     batchopts="--batch-size 128 --start-lr 1e-3"
+elif [[ "$model" == "PairAttnParT" ]]; then
+    modelopts="networks/example_PairAttnParticleTransformer.py --use-amp"
+    batchopts="--batch-size 256 --start-lr 1e-3"
+elif [[ "$model" == "MorePairAttnParT" ]]; then
+    modelopts="networks/example_MorePairAttnParticleTransformer.py --use-amp"
+    batchopts="--batch-size 128 --start-lr 1e-3"
 else
     echo "Invalid model $model!"
     exit 1
@@ -77,7 +83,7 @@ $CMD \
     --data-config data/JetClass/JetClass_${FEATURE_TYPE}.yaml --network-config $modelopts \
     --model-prefix training/JetClass/${SAMPLE_TYPE}/${FEATURE_TYPE}/${model}/{auto}${suffix}/net \
     $dataopts $batchopts \
-    --samples-per-epoch ${samples_per_epoch} --samples-per-epoch-val ${samples_per_epoch_val} --num-epochs $epochs --gpus 0,1,2,3 \
+    --samples-per-epoch ${samples_per_epoch} --samples-per-epoch-val ${samples_per_epoch_val} --num-epochs $epochs --gpus 0 \
     --optimizer ranger --log logs/JetClass_${SAMPLE_TYPE}_${FEATURE_TYPE}_${model}_{auto}${suffix}.log --predict-output pred.root \
     --tensorboard JetClass_${SAMPLE_TYPE}_${FEATURE_TYPE}_${model}${suffix} \
     "${@:3}"
