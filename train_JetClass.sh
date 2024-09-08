@@ -62,6 +62,12 @@ elif [[ "$model" == "PFN" ]]; then
 elif [[ "$model" == "PCNN" ]]; then
     modelopts="networks/example_PCNN.py"
     batchopts="--batch-size 4096 --start-lr 2e-2"
+elif [[ "$model" == "Single" ]]; then
+    modelopts="networks/example_Single.py --use-amp"
+    batchopts="--batch-size 128 --start-lr 1e-3 "
+elif [[ "$model" == "SinglePairs" ]]; then
+    modelopts="networks/example_SinglePairs.py --use-amp"
+    batchopts="--batch-size 128 --start-lr 1e-3"
 else
     echo "Invalid model $model!"
     exit 1
