@@ -11,13 +11,15 @@ spec:
     command: ["/bin/bash", "-c", "sleep infinity"]
     resources:
       limits:
-        nvidia.com/gpu: "2"
-        cpu: "16"
-        memory: "32Gi"
+        nvidia.com/gpu: "1"
+        cpu: "8"
+        memory: "16Gi"
     volumeMounts:
-    - mountPath: /part-vol-2
-      name: part-vol-2
+    - mountPath: /part-vol-3
+      name: part-vol-3
   volumes:
-    - name: part-vol-2
+    - name: part-vol-3
       persistentVolumeClaim:
-        claimName: part-vol-2
+        claimName: part-vol-3
+  nodeSelector:
+    topology.kubernetes.io/region: us-central

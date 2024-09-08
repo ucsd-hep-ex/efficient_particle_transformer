@@ -11,7 +11,169 @@ import torch.nn as nn
 from functools import partial
 
 from weaver.utils.logger import _logger
-from weaver.nn.model.ParticleTransformer import build_sparse_tensor, trunc_normal_, SequenceTrimmer, Embed, Block, PairEmbed
+from weaver.nn.model.ParticleTransformer import build_sparse_tensor, trunc_normal_, SequenceTrimmer, Embed, Block, pairwise_lv_fts
+
+def to_qtypedderr(x):
+    # x: (N, 17, ...),
+    # dim1: [pt_log, e_log, logptrel, logerel, deltaR,
+    # charge, isChargedHadron, isNeutralHadron, isPhoton, isElectron, isMuon,
+    # d0, d0err, dz, dzerr,
+    # deta, dphi]
+    kin, qtype, d0, d0err, dz, dzerr, detaphi = x.split((5, 6, 1, 1, 1, 1, 2), dim=1)
+    return qtype, torch.cat((d0, dz), dim=1), torch.cat((d0err, dzerr), dim=1)
+
+def pairwise_x_fts(xi, xj, num_outputs=10, eps=1e-8):
+    qtypei, di, derri = to_qtypedderr(xi)
+    qtypej, dj, derrj = to_qtypedderr(xj)
+    qtype = qtypei + qtypej
+    d = (di + dj) / (1 + di*dj + eps)
+    derr = torch.sqrt(derri**2 + derrj**2)
+    outputs = torch.cat([qtype, d, derr], dim=1)
+    assert num_outputs == outputs.size(1)
+    return outputs
+
+class PairEmbedFull(nn.Module):
+    def __init__(
+            self, pairwise_lv_dim, pairwise_x_dim, pairwise_input_dim, dims,
+            remove_self_pair=False, use_pre_activation_pair=True, mode='concat',
+            normalize_input=True, activation='gelu', eps=1e-8,
+            for_onnx=False):
+        super().__init__()
+
+        self.pairwise_lv_dim = pairwise_lv_dim
+        self.pairwise_x_dim = pairwise_x_dim
+        self.pairwise_input_dim = pairwise_input_dim
+        self.is_symmetric = (pairwise_lv_dim <= 5) and (pairwise_input_dim == 0)
+        self.remove_self_pair = remove_self_pair
+        self.mode = mode
+        self.for_onnx = for_onnx
+        self.pairwise_lv_fts = partial(pairwise_lv_fts, num_outputs=pairwise_lv_dim, eps=eps, for_onnx=for_onnx)
+        self.pairwise_x_fts = partial(pairwise_x_fts, num_outputs=pairwise_x_dim)
+        self.out_dim = dims[-1]
+
+        if self.mode == 'concat':
+            input_dim = pairwise_lv_dim + pairwise_x_dim + pairwise_input_dim
+            module_list = [nn.BatchNorm1d(input_dim)] if normalize_input else []
+            for dim in dims:
+                module_list.extend([
+                    nn.Conv1d(input_dim, dim, 1),
+                    nn.BatchNorm1d(dim),
+                    nn.GELU() if activation == 'gelu' else nn.ReLU(),
+                ])
+                input_dim = dim
+            if use_pre_activation_pair:
+                module_list = module_list[:-1]
+            self.embed = nn.Sequential(*module_list)
+        elif self.mode == 'sum':
+            if pairwise_lv_dim > 0:
+                input_dim = pairwise_lv_dim
+                module_list = [nn.BatchNorm1d(input_dim)] if normalize_input else []
+                for dim in dims:
+                    module_list.extend([
+                        nn.Conv1d(input_dim, dim, 1),
+                        nn.BatchNorm1d(dim),
+                        nn.GELU() if activation == 'gelu' else nn.ReLU(),
+                    ])
+                    input_dim = dim
+                if use_pre_activation_pair:
+                    module_list = module_list[:-1]
+                self.embed = nn.Sequential(*module_list)
+            if pairwise_x_dim > 0:
+                input_dim = pairwise_x_dim
+                module_list = [nn.BatchNorm1d(input_dim)] if normalize_input else []
+                for dim in dims:
+                    module_list.extend([
+                        nn.Conv1d(input_dim, dim, 1),
+                        nn.BatchNorm1d(dim),
+                        nn.GELU() if activation == 'gelu' else nn.ReLU(),
+                    ])
+                    input_dim = dim
+                if use_pre_activation_pair:
+                    module_list = module_list[:-1]
+                self.x_embed = nn.Sequential(*module_list)
+
+            if pairwise_input_dim > 0:
+                input_dim = pairwise_input_dim
+                module_list = [nn.BatchNorm1d(input_dim)] if normalize_input else []
+                for dim in dims:
+                    module_list.extend([
+                        nn.Conv1d(input_dim, dim, 1),
+                        nn.BatchNorm1d(dim),
+                        nn.GELU() if activation == 'gelu' else nn.ReLU(),
+                    ])
+                    input_dim = dim
+                if use_pre_activation_pair:
+                    module_list = module_list[:-1]
+                self.fts_embed = nn.Sequential(*module_list)
+        else:
+            raise RuntimeError('`mode` can only be `sum` or `concat`')
+
+    def forward(self, x, z, uu=None):
+        # x: (batch, v_dim, seq_len)
+        # z: (batch, x_dim, seq_len)
+        # uu: (batch, v_dim, seq_len, seq_len)
+        assert (x is not None or uu is not None)
+        with torch.no_grad():
+            if x is not None:
+                batch_size, _, seq_len = x.size()
+            else:
+                batch_size, _, seq_len, _ = uu.size()
+            if self.is_symmetric and not self.for_onnx:
+                i, j = torch.tril_indices(seq_len, seq_len, offset=-1 if self.remove_self_pair else 0,
+                                          device=(x if x is not None else uu).device)
+                if x is not None:
+                    x = x.unsqueeze(-1).repeat(1, 1, 1, seq_len)
+                    xi = x[:, :, i, j]  # (batch, dim, seq_len*(seq_len+1)/2)
+                    xj = x[:, :, j, i]
+                    x = self.pairwise_lv_fts(xi, xj)
+                if z is not None:
+                    z = z.unsqueeze(-1).repeat(1, 1, 1, seq_len)
+                    zi = z[:, :, i, j]
+                    zj = z[:, :, j, i]
+                    z = self.pairwise_x_fts(zi, zj)
+                if uu is not None:
+                    # (batch, dim, seq_len*(seq_len+1)/2)
+                    uu = uu[:, :, i, j]
+            else:
+                if x is not None:
+                    x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
+                    if self.remove_self_pair:
+                        i = torch.arange(0, seq_len, device=x.device)
+                        x[:, :, i, i] = 0
+                    x = x.view(-1, self.pairwise_lv_dim, seq_len * seq_len)
+                if uu is not None:
+                    uu = uu.view(-1, self.pairwise_input_dim, seq_len * seq_len)
+            if self.mode == 'concat':
+                pair_fts = []
+                if x is not None:
+                    pair_fts.append(x)
+                if z is not None:
+                    pair_fts.append(z)
+                if uu is not None:
+                    pair_fts.append(uu)
+                if len(pair_fts) == 1:
+                    pair_fts = pair_fts[0]
+                else:
+                    pair_fts = torch.cat(pair_fts, dim=1)
+
+        if self.mode == 'concat':
+            elements = self.embed(pair_fts)  # (batch, embed_dim, num_elements)
+        elif self.mode == 'sum':
+            elements = 0
+            if x is not None:
+                elements += self.embed(x)
+            if z is not None:
+                elements += self.x_embed(z)
+            elif uu is not None:
+                elements += self.fts_embed(x)
+
+        if self.is_symmetric and not self.for_onnx:
+            y = torch.zeros(batch_size, self.out_dim, seq_len, seq_len, dtype=elements.dtype, device=elements.device)
+            y[:, :, i, j] = elements
+            y[:, :, j, i] = elements
+        else:
+            y = elements.view(-1, self.out_dim, seq_len, seq_len)
+        return y
 
 class PairAttention(nn.Module):
     def __init__(self, embed_dim, num_heads, dropout=0.1):
@@ -99,12 +261,6 @@ class LinBlock(nn.Module):
             )
         elif self.attn_type == "pairs":
             self.attn = PairAttention(embed_dim, num_heads, dropout=attn_dropout)
-        self.full_attn = nn.MultiheadAttention(
-            embed_dim,
-            num_heads,
-            dropout=attn_dropout,
-            add_bias_kv=add_bias_kv,
-        )
         self.post_attn_norm = nn.LayerNorm(embed_dim) if scale_attn else None
         self.dropout = nn.Dropout(dropout)
 
@@ -126,11 +282,10 @@ class LinBlock(nn.Module):
             else None
         )
 
-    def forward(self, x, x_cls=None, padding_mask=None, attn_mask=None):
+    def forward(self, x, padding_mask=None, attn_mask=None):
         """
         Args:
             x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
-            x_cls (Tensor, optional): class token input to the layer of shape `(1, batch, embed_dim)`
             padding_mask (ByteTensor, optional): binary
                 ByteTensor of shape `(batch, seq_len)` where padding
                 elements are indicated by ``1``.
@@ -139,36 +294,22 @@ class LinBlock(nn.Module):
             encoded output of shape `(seq_len, batch, embed_dim)`
         """
 
-        if x_cls is not None:
-            with torch.no_grad():
-                # prepend one element for x_cls: -> (batch, 1+seq_len)
-                padding_mask = torch.cat(
-                    (torch.zeros_like(padding_mask[:, :1]), padding_mask), dim=1
-                )
-            # class attention: https://arxiv.org/pdf/2103.17239.pdf
-            residual = x_cls
-            u = torch.cat((x_cls, x), dim=0)  # (seq_len+1, batch, embed_dim)
-            u = self.pre_attn_norm(u)
-            x = self.full_attn(x_cls, u, u, key_padding_mask=padding_mask)[
+        residual = x
+        x = self.pre_attn_norm(x)
+        if self.attn_type == "linformer":
+            x = self.attn(x, x, x, key_padding_mask=padding_mask, attn_mask=attn_mask)[
                 0
-            ]  # (1, batch, embed_dim)
-        else:
-            residual = x
-            x = self.pre_attn_norm(x)
-            if self.attn_type == "linformer":
-                x = self.attn(x, x, x, key_padding_mask=padding_mask, attn_mask=attn_mask)[
-                    0
-                ]  # (seq_len, batch, embed_dim)
-            elif self.attn_type == "performer":
-                x = self.attn(x, x, input_mask=padding_mask, attn_mask=attn_mask)[
-                    0
-                ]  # (seq_len, batch, embed_dim)
-            elif self.attn_type == "reformer":
-                x = self.attn(x)
-            elif self.attn_type == "mamba":
-                x = self.attn(x)
-            elif self.attn_type == "pairs":
-                x = self.attn(x, attn_mask)[0]
+            ]  # (seq_len, batch, embed_dim)
+        elif self.attn_type == "performer":
+            x = self.attn(x, x, input_mask=padding_mask, attn_mask=attn_mask)[
+                0
+            ]  # (seq_len, batch, embed_dim)
+        elif self.attn_type == "reformer":
+            x = self.attn(x)
+        elif self.attn_type == "mamba":
+            x = self.attn(x)
+        elif self.attn_type == "pairs":
+            x = self.attn(x, attn_mask)[0]
 
         if self.c_attn is not None:
             tgt_len = x.size(0)
@@ -202,6 +343,7 @@ class EfficientParticleTransformer(nn.Module):
         num_classes=None,
         # network configurations
         pair_input_dim=4,
+        pair_more_input_dim=0,
         pair_extra_dim=0,
         remove_self_pair=False,
         use_pre_activation_pair=True,
@@ -258,10 +400,11 @@ class EfficientParticleTransformer(nn.Module):
             if len(embed_dims) > 0
             else nn.Identity()
         )
-        self.pair_embed = PairEmbed(
-            pair_input_dim, pair_extra_dim, pair_embed_dims + [cfg_block['num_heads']],
+        self.pair_more_input_dim = pair_more_input_dim
+        self.pair_embed = PairEmbedFull(
+            pair_input_dim, pair_more_input_dim, pair_extra_dim, pair_embed_dims + [cfg_block['num_heads']],
             remove_self_pair=remove_self_pair, use_pre_activation_pair=use_pre_activation_pair,
-            for_onnx=for_inference) if pair_embed_dims is not None and pair_input_dim + pair_extra_dim > 0 else None
+            for_onnx=for_inference) if pair_embed_dims is not None and pair_input_dim + pair_more_input_dim + pair_extra_dim > 0 else None
         self.blocks = nn.ModuleList([LinBlock(**cfg_block) for _ in range(num_layers)])
         self.cls_blocks = nn.ModuleList(
             [Block(**cfg_cls_block) for _ in range(num_cls_layers)]
@@ -308,15 +451,16 @@ class EfficientParticleTransformer(nn.Module):
             padding_mask = ~mask.squeeze(1)  # (N, P)
 
         with torch.cuda.amp.autocast(enabled=self.use_amp):
+            x_in = x if self.pair_more_input_dim > 0 else None
             # input embedding
             x = self.embed(x).masked_fill(~mask.permute(2, 0, 1), 0)  # (P, N, C)
             attn_mask = None
-            if (v is not None or uu is not None) and self.pair_embed is not None:
-                attn_mask = self.pair_embed(v, uu).view(-1, v.size(-1), v.size(-1))  # (N*num_heads, P, P)
+            if (v is not None or x_in is not None or uu is not None) and self.pair_embed is not None:
+                attn_mask = self.pair_embed(v, x_in, uu).view(-1, v.size(-1), v.size(-1))  # (N*num_heads, P, P)
 
             # transform
             for block in self.blocks:
-                x = block(x, x_cls=None, padding_mask=padding_mask, attn_mask=attn_mask)
+                x = block(x, padding_mask=padding_mask, attn_mask=attn_mask)
 
             # extract class token
             cls_tokens = self.cls_token.expand(1, x.size(1), -1)  # (1, N, C)

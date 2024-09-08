@@ -28,11 +28,11 @@ def get_model(data_config, **kwargs):
         num_classes=len(data_config.label_value),
         # network configurations
         pair_input_dim=4,
-        pair_more_input_dim=0,
+        pair_more_input_dim=10,
         use_pre_activation_pair=False,
         embed_dims=[128, 512, 128],
         pair_embed_dims=[64, 64, 64],
-        num_heads=8,
+        num_heads=64,
         num_layers=8,
         num_cls_layers=2,
         block_params={'attn_type': 'pairs'},

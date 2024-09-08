@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: pairattnpart-data100m-job
+  name: morepairattnpart-data100m-job
   labels:
     jobgroup: part-job
 spec:
@@ -17,7 +17,7 @@ spec:
             cd /part-vol-3/weaver-core &&
             pip install -e . &&
             cd /part-vol-3/weaver-core/particle_transformer &&
-            ./train_JetClass.sh PairAttnParT full --batch-size 512 --gpus 0,1,2,3 --num-workers 2
+            ./train_JetClass.sh MorePairAttnParT full --batch-size 512 --gpus 0,1,2,3 --num-workers 2
         volumeMounts:
         - mountPath: /part-vol-3
           name: part-vol-3
