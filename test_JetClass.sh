@@ -68,7 +68,7 @@ fi
 SAMPLE_TYPE=Pythia
 
 $CMD \
-    -—predict \
+    --predict \
     --data-test \
     "HToBB:${DATADIR}/${SAMPLE_TYPE}/test_20M/HToBB_*.root" \
     "HToCC:${DATADIR}/${SAMPLE_TYPE}/test_20M/HToCC_*.root" \
@@ -81,9 +81,10 @@ $CMD \
     "ZToQQ:${DATADIR}/${SAMPLE_TYPE}/test_20M/ZToQQ_*.root" \
     "ZJetsToNuNu:${DATADIR}/${SAMPLE_TYPE}/test_20M/ZJetsToNuNu_*.root" \
     --data-config data/JetClass/JetClass_${FEATURE_TYPE}.yaml --network-config $modelopts \
-    --model-prefix training/JetClass/${SAMPLE_TYPE}/${FEATURE_TYPE}/${model}/{auto}${suffix}/net \
+    --model-prefix models/${model}_${FEATURE_TYPE}.pt \
+    --load-model-weights models/${model}_${FEATURE_TYPE}.pt \
     $dataopts $batchopts \
     --samples-per-epoch ${samples_per_epoch} --samples-per-epoch-val ${samples_per_epoch_val} --num-epochs $epochs --gpus 0 \
-    --optimizer ranger --log logs/JetClass_${SAMPLE_TYPE}_${FEATURE_TYPE}_${model}_{auto}${suffix}.log --predict-output pred.root \
+    --optimizer ranger --log logs/JetClass_${SAMPLE_TYPE}_${FEATURE_TYPE}_${model}_{auto}${suffix}.log --predict-output models/${model}_${FEATURE_TYPE}_pred.root \
     --tensorboard JetClass_${SAMPLE_TYPE}_${FEATURE_TYPE}_${model}${suffix} \
     "${@:3}"
