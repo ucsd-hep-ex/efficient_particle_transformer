@@ -329,10 +329,10 @@ class MultiheadLinearAttention(nn.Module):
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         # Adding Attention Mask
-        if self.self_attention:
+        if self.self_attention and attn_mask is not None:
             attn_mask = F.linear(attn_mask, self.pair_subsequence.weight[:, 0:tgt_len])
 
-        if attn_weights is not None:
+        if attn_mask is not None:
             attn_weights += attn_mask
 
         attn_weights = MultiheadLinearAttention.apply_sparse_mask(
@@ -340,12 +340,6 @@ class MultiheadLinearAttention(nn.Module):
         )
 
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
-
-        # if attn_mask is not None:
-        #     attn_mask = attn_mask.unsqueeze(0)
-        #     if self.onnx_trace:
-        #         attn_mask = attn_mask.repeat(attn_weights.size(0), 1, 1)
-        #     attn_weights += attn_mask
 
         if before_softmax:
             return attn_weights, v

@@ -240,6 +240,7 @@ class LinBlock(nn.Module):
                 add_bias_kv=add_bias_kv,
                 max_seq_len=max_seq_len,
                 compressed=compressed,
+                self_attention=True,
             )
         elif self.attn_type == "reformer":
             from reformer_pytorch import LSHSelfAttention
