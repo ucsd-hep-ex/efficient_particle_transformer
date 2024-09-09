@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: part-pred-job
+  labels:
+    jobgroup: part-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: training
+        image: gitlab-registry.nrp-nautilus.io/jmduarte/weaver:latest
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - >-
+            cd /part-vol-3/weaver-core &&
+            pip install -e . &&
+            cd /part-vol-3/weaver-core/particle_transformer &&
+            ./test_JetClass.sh ParT full --num-workers 1
+        volumeMounts:
+        - mountPath: /part-vol-3
+          name: part-vol-3
+        resources:
+          requests:
+            memory: 64Gi
+            cpu: "32"
+            nvidia.com/gpu: "1"
+          limits:
+            memory: 128Gi
+            cpu: "64"
+            nvidia.com/gpu: "1"
+      volumes:
+      - name: part-vol-3
+        persistentVolumeClaim:
+          claimName: part-vol-3
+      restartPolicy: Never
+  backoffLimit: 0
