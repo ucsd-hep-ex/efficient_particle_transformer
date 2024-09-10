@@ -76,16 +76,16 @@ SAMPLE_TYPE=Pythia
 $CMD \
     --predict \
     --data-test \
-    "HToBB:${DATADIR}/${SAMPLE_TYPE}/test_20M/HToBB_10[0-1].root" \
-    "HToCC:${DATADIR}/${SAMPLE_TYPE}/test_20M/HToCC_10[0-1].root" \
-    "HToGG:${DATADIR}/${SAMPLE_TYPE}/test_20M/HToGG_10[0-1].root" \
-    "HToWW2Q1L:${DATADIR}/${SAMPLE_TYPE}/test_20M/HToWW2Q1L_10[0-1].root" \
-    "HToWW4Q:${DATADIR}/${SAMPLE_TYPE}/test_20M/HToWW4Q_10[0-1].root" \
-    "TTBar:${DATADIR}/${SAMPLE_TYPE}/test_20M/TTBar_10[0-1].root" \
-    "TTBarLep:${DATADIR}/${SAMPLE_TYPE}/test_20M/TTBarLep_10[0-1].root" \
-    "WToQQ:${DATADIR}/${SAMPLE_TYPE}/test_20M/WToQQ_10[0-1].root" \
-    "ZToQQ:${DATADIR}/${SAMPLE_TYPE}/test_20M/ZToQQ_10[0-1].root" \
-    "ZJetsToNuNu:${DATADIR}/${SAMPLE_TYPE}/test_20M/ZJetsToNuNu_10[0-1].root" \
+    "HToBB:${DATADIR}/${SAMPLE_TYPE}/test_20M/HToBB_*.root" \
+    "HToCC:${DATADIR}/${SAMPLE_TYPE}/test_20M/HToCC_*.root" \
+    "HToGG:${DATADIR}/${SAMPLE_TYPE}/test_20M/HToGG_*.root" \
+    "HToWW2Q1L:${DATADIR}/${SAMPLE_TYPE}/test_20M/HToWW2Q1L_*.root" \
+    "HToWW4Q:${DATADIR}/${SAMPLE_TYPE}/test_20M/HToWW4Q_*.root" \
+    "TTBar:${DATADIR}/${SAMPLE_TYPE}/test_20M/TTBar_*.root" \
+    "TTBarLep:${DATADIR}/${SAMPLE_TYPE}/test_20M/TTBarLep_*.root" \
+    "WToQQ:${DATADIR}/${SAMPLE_TYPE}/test_20M/WToQQ_*.root" \
+    "ZToQQ:${DATADIR}/${SAMPLE_TYPE}/test_20M/ZToQQ_*.root" \
+    "ZJetsToNuNu:${DATADIR}/${SAMPLE_TYPE}/test_20M/ZJetsToNuNu_*.root" \
     --data-config data/JetClass/JetClass_${FEATURE_TYPE}.yaml --network-config $modelopts \
     --model-prefix models/${model}_${FEATURE_TYPE}.pt \
     --load-model-weights models/${model}_${FEATURE_TYPE}.pt \
