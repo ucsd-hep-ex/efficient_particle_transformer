@@ -85,6 +85,7 @@ class MultiheadLinearAttention(nn.Module):
                 )
             self.layerwise_sharing = False
         else:
+            self.compress_seq_len = shared_compress_layer.out_features
             self.compress_k = shared_compress_layer
             if shared_kv_compressed == 0:
                 self.compress_v = shared_compress_layer
