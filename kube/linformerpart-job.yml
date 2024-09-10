@@ -14,26 +14,25 @@ spec:
         args:
         - -c
         - >-
-            cd /part-vol-2/weaver-core &&
+            cd /part-vol-3/weaver-core &&
             pip install -e . &&
-            pip install reformer_pytorch &&
-            cd /part-vol-2/weaver-core/particle_transformer &&
-            ./train_JetClass.sh LinformerParT full --batch-size 1024 --gpus 0,1 --num-workers 1
+            cd /part-vol-3/weaver-core/particle_transformer &&
+            ./train_JetClass.sh LinformerPairWise full --batch-size 512 --gpus 0,1,2,3 --num-workers 2
         volumeMounts:
-        - mountPath: /part-vol-2
-          name: part-vol-2
+        - mountPath: /part-vol-3
+          name: part-vol-3
         resources:
           limits:
-            memory: 64Gi
-            cpu: "32"
-            nvidia.com/gpu: "2"
+            memory: 128Gi
+            cpu: "64"
+            nvidia.com/gpu: "4"
           requests:
-            memory: 64Gi
-            cpu: "32"
-            nvidia.com/gpu: "2"
+            memory: 128Gi
+            cpu: "64"
+            nvidia.com/gpu: "4"
       volumes:
-      - name: part-vol-2
+      - name: part-vol-3
         persistentVolumeClaim:
-          claimName: part-vol-2
+          claimName: part-vol-3
       restartPolicy: Never
   backoffLimit: 0
