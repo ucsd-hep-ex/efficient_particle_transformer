@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: linformerpart-data100m-job
+  name: linformerpart-pred-job
   labels:
     jobgroup: part-job
 spec:
@@ -17,19 +17,19 @@ spec:
             cd /part-vol-3/weaver-core &&
             pip install -e . &&
             cd /part-vol-3/weaver-core/particle_transformer &&
-            ./train_JetClass.sh LinformerPairWise full --batch-size 512 --gpus 0,1,2,3 --num-workers 2
+            ./test_JetClass.sh LinformerParT full --num-workers 1
         volumeMounts:
         - mountPath: /part-vol-3
           name: part-vol-3
         resources:
+          requests:
+            memory: 64Gi
+            cpu: "32"
+            nvidia.com/gpu: "1"
           limits:
             memory: 128Gi
             cpu: "64"
-            nvidia.com/gpu: "4"
-          requests:
-            memory: 128Gi
-            cpu: "64"
-            nvidia.com/gpu: "4"
+            nvidia.com/gpu: "1"
       volumes:
       - name: part-vol-3
         persistentVolumeClaim:

@@ -233,6 +233,7 @@ class LinBlock(nn.Module):
         self.pre_attn_norm = nn.LayerNorm(embed_dim)
         if self.attn_type == "linformer":
             from particle_transformer.networks.multihead_linear_attention import MultiheadLinearAttention
+            shared_compress_layer = nn.Linear(max_seq_len, max_seq_len // compressed, bias=False)
             self.attn = MultiheadLinearAttention(
                 embed_dim,
                 num_heads,
@@ -240,6 +241,9 @@ class LinBlock(nn.Module):
                 add_bias_kv=add_bias_kv,
                 max_seq_len=max_seq_len,
                 compressed=compressed,
+                self_attention=True,
+                shared_kv_compressed=1,
+                shared_compress_layer=shared_compress_layer,
             )
         elif self.attn_type == "reformer":
             from reformer_pytorch import LSHSelfAttention
