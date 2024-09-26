@@ -34,7 +34,7 @@ def get_model(data_config, **kwargs):
         num_heads=8,
         num_layers=8,
         num_cls_layers=2,
-        block_params={'attn_type': 'linformer', 'compressed': 4},
+        block_params={'attn_type': 'linformer', 'compressed': 8},
         cls_block_params={'dropout': 0, 'attn_dropout': 0, 'activation_dropout': 0},
         fc_params=[],
         activation='gelu',
