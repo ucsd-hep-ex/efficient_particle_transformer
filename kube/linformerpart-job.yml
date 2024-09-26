@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: linformerpart-data100m-job
+  name: linformerpart-data100m-compress8-job
   labels:
     jobgroup: part-job
 spec:
