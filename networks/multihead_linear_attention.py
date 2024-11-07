@@ -83,6 +83,9 @@ class MultiheadLinearAttention(nn.Module):
                 self.compress_v = nn.Linear(
                     max_seq_len, self.compress_seq_len, bias=False
                 )
+                self.pair_subsequence = nn.Linear(
+                    max_seq_len, self.compress_seq_len, bias=False
+                 )
             self.layerwise_sharing = False
         else:
             self.compress_seq_len = shared_compress_layer.out_features
@@ -90,9 +93,8 @@ class MultiheadLinearAttention(nn.Module):
             if shared_kv_compressed == 0:
                 self.compress_v = shared_compress_layer
             self.layerwise_sharing = True
+            self.pair_subsequence = shared_compress_layer
         self.shared_kv_compressed = shared_kv_compressed
-
-        self.pair_subsequence = nn.Linear(max_seq_len, self.compress_seq_len, bias=bias) #projecting attn mask to same dimensions as attn (QK)
 
         self.out_proj = quant_noise(
             nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size
